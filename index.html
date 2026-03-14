@@ -265,13 +265,15 @@
     </div>
   </div>
 
-  <div id="controls-hint">WASD / arrows to move &nbsp;·&nbsp; left click or SPACE to shoot &nbsp;·&nbsp; aim with mouse</div>
+  <div id="controls-hint">WASD / arrows — move &nbsp;·&nbsp; left click / space — shoot &nbsp;·&nbsp; right click — melee &nbsp;·&nbsp; shift — dash</div>
 </div>
 
 <script>
 const W = 700, H = 500, SQ = 28, SPEED = 3;
 const BULLET_SPEED = 7, BULLET_R = 4, BULLET_DMG = 10;
-const FIRE_COOLDOWN = 400; // ms
+const FIRE_COOLDOWN = 400;
+const DASH_DIST = 120, DASH_COOLDOWN = 1000;
+const MELEE_RANGE = 55, MELEE_ARC = Math.PI * 0.65, MELEE_DMG = 25, MELEE_COOLDOWN = 500, MELEE_FRAMES = 10;
 const MAX_HP = 100;
 
 const COLORS = ['#4eff91', '#4eb8ff', '#ff4e91', '#ffd04e', '#c04eff', '#ff884e'];
@@ -281,7 +283,16 @@ let myColor, theirColor, myName, theirName;
 let inGame = false;
 let keys = {};
 let animFrame, lastSend = 0, lastFire = 0;
-let mouse = { x: W / 2, y: H / 2 }; // canvas-relative mouse position
+let lastDash = 0, lastMelee = 0;
+let mouse = { x: W / 2, y: H / 2 };
+
+// Dash ghost trail
+let dashTrails = []; // { x, y, alpha }
+
+// Melee swings: { cx, cy, angle, frame }
+let mySwings    = [];
+let theirSwings = [];
+let mySwingHit  = false; // prevent multi-hit per swing
 
 let me    = { x: 80, y: H/2 - SQ/2, hp: MAX_HP };
 let them  = { x: W - 80 - SQ, y: H/2 - SQ/2, hp: MAX_HP };
@@ -387,7 +398,20 @@ function setupConn(isHost) {
         me.hp = Math.max(0, me.hp - BULLET_DMG);
         myFlash = 8;
         updateHUD();
-        if (me.hp <= 0) handleDeath(false); // I died
+        if (me.hp <= 0) handleDeath(false);
+        break;
+
+      case 'melee_swing':
+        // Their swing animation — just render it
+        theirSwings.push({ cx: data.cx, cy: data.cy, angle: data.angle, frame: 0 });
+        break;
+
+      case 'melee_hit':
+        // Their melee hit me
+        me.hp = Math.max(0, me.hp - MELEE_DMG);
+        myFlash = 12;
+        updateHUD();
+        if (me.hp <= 0) handleDeath(false);
         break;
 
       case 'rematch':
@@ -442,8 +466,10 @@ function resetState() {
   them.hp = MAX_HP;
   myBullets = [];
   theirBullets = [];
-  facing = { x: myColor === COLORS[0] ? 1 : -1, y: 0 };
+  mySwings = []; theirSwings = [];
+  dashTrails = [];
   myFlash = 0; theirFlash = 0;
+  lastDash = 0; lastMelee = 0;
   wantsRematch = false; theyWantRematch = false;
 }
 
@@ -533,7 +559,7 @@ function update() {
     lastSend = now;
   }
 
-  // Firing — space bar held or mouse button held
+  // Firing — left click or space
   if ((keys[' '] || keys['mousedown']) && now - lastFire > FIRE_COOLDOWN) {
     fire();
     lastFire = now;
@@ -544,31 +570,25 @@ function update() {
     const b = myBullets[i];
     b.x += b.vx;
     b.y += b.vy;
-
-    // Out of bounds
     if (b.x < -20 || b.x > W + 20 || b.y < -20 || b.y > H + 20) {
       myBullets.splice(i, 1);
       conn && conn.send({ type: 'bullet_remove', id: b.id });
       continue;
     }
-
-    // Hit opponent square
     if (b.x + BULLET_R > them.x && b.x - BULLET_R < them.x + SQ &&
         b.y + BULLET_R > them.y && b.y - BULLET_R < them.y + SQ) {
       myBullets.splice(i, 1);
       conn && conn.send({ type: 'bullet_remove', id: b.id });
-      // Tell them they got hit
       conn && conn.send({ type: 'hit' });
-      // Update their hp locally for display
       them.hp = Math.max(0, them.hp - BULLET_DMG);
       theirFlash = 8;
       updateHUD();
-      if (them.hp <= 0) handleDeath(true); // I won
+      if (them.hp <= 0) handleDeath(true);
       continue;
     }
   }
 
-  // Move their bullets (for visual only — they own the hit detection on their side)
+  // Move their bullets (visual only)
   for (let i = theirBullets.length - 1; i >= 0; i--) {
     const b = theirBullets[i];
     b.x += b.vx;
@@ -576,6 +596,45 @@ function update() {
     if (b.x < -20 || b.x > W + 20 || b.y < -20 || b.y > H + 20) {
       theirBullets.splice(i, 1);
     }
+  }
+
+  // Tick my swings + melee hit detection
+  for (let i = mySwings.length - 1; i >= 0; i--) {
+    const s = mySwings[i];
+    s.frame++;
+    // Hit detection in the active window (frames 2–6)
+    if (!s.hit && s.frame >= 2 && s.frame <= 6) {
+      const tcx = them.x + SQ / 2, tcy = them.y + SQ / 2;
+      const ddx = tcx - s.cx, ddy = tcy - s.cy;
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (dist < MELEE_RANGE + SQ / 2) {
+        const angle = Math.atan2(ddy, ddx);
+        let diff = angle - s.angle;
+        while (diff > Math.PI)  diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        if (Math.abs(diff) < MELEE_ARC / 2) {
+          s.hit = true;
+          conn && conn.send({ type: 'melee_hit' });
+          them.hp = Math.max(0, them.hp - MELEE_DMG);
+          theirFlash = 12;
+          updateHUD();
+          if (them.hp <= 0) handleDeath(true);
+        }
+      }
+    }
+    if (s.frame >= MELEE_FRAMES) mySwings.splice(i, 1);
+  }
+
+  // Tick their swings (visual only)
+  for (let i = theirSwings.length - 1; i >= 0; i--) {
+    theirSwings[i].frame++;
+    if (theirSwings[i].frame >= MELEE_FRAMES) theirSwings.splice(i, 1);
+  }
+
+  // Fade dash trails
+  for (let i = dashTrails.length - 1; i >= 0; i--) {
+    dashTrails[i].alpha -= 0.08;
+    if (dashTrails[i].alpha <= 0) dashTrails.splice(i, 1);
   }
 
   // Tick flash
@@ -596,6 +655,37 @@ function fire() {
   conn && conn.send({ type: 'bullet', x: b.x, y: b.y, vx: b.vx, vy: b.vy, id: b.id });
 }
 
+function dash(dx, dy) {
+  // Default to mouse direction if not moving
+  let nx = dx, ny = dy;
+  if (nx === 0 && ny === 0) {
+    const cx = me.x + SQ / 2, cy = me.y + SQ / 2;
+    const mdx = mouse.x - cx, mdy = mouse.y - cy;
+    const mlen = Math.sqrt(mdx * mdx + mdy * mdy);
+    if (mlen === 0) return;
+    nx = mdx / mlen; ny = mdy / mlen;
+  } else {
+    const dlen = Math.sqrt(nx * nx + ny * ny);
+    nx /= dlen; ny /= dlen;
+  }
+  // Leave ghost at current position
+  dashTrails.push({ x: me.x, y: me.y, alpha: 0.6, color: myColor });
+  me.x = Math.max(0, Math.min(W - SQ, me.x + nx * DASH_DIST));
+  me.y = Math.max(0, Math.min(H - SQ, me.y + ny * DASH_DIST));
+  // Immediately broadcast new position
+  conn && conn.send({ type: 'pos', x: me.x, y: me.y });
+}
+
+function melee() {
+  const cx = me.x + SQ / 2, cy = me.y + SQ / 2;
+  const dx = mouse.x - cx, dy = mouse.y - cy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const angle = len === 0 ? 0 : Math.atan2(dy, dx);
+  const swing = { cx, cy, angle, frame: 0, hit: false };
+  mySwings.push(swing);
+  conn && conn.send({ type: 'melee_swing', cx, cy, angle });
+}
+
 // ── Render ─────────────────────────────────────────────────
 
 function render() {
@@ -608,15 +698,28 @@ function render() {
   for (let x = 0; x <= W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
   for (let y = 0; y <= H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
+  // Dash ghost trails
+  for (const t of dashTrails) {
+    ctx.globalAlpha = t.alpha * 0.5;
+    ctx.fillStyle = t.color;
+    rrect(t.x, t.y, SQ, SQ, 4);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   // Their bullets
   for (const b of theirBullets) drawBullet(b, theirColor);
   // My bullets
   for (const b of myBullets)    drawBullet(b, myColor);
 
+  // Melee swings
+  for (const s of theirSwings) drawSwing(s, theirColor);
+  for (const s of mySwings)    drawSwing(s, myColor);
+
   drawSquare(them, theirColor, theirName || 'Opponent', false, theirFlash > 0);
   drawSquare(me,   myColor,    myName    || 'You',      true,  myFlash > 0);
 
-  // Aim line from player center toward mouse
+  // Aim line + crosshair
   const cx = me.x + SQ / 2;
   const cy = me.y + SQ / 2;
   const dx = mouse.x - cx;
@@ -624,8 +727,7 @@ function render() {
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len > 0 && inGame) {
     const nx = dx / len, ny = dy / len;
-    const lineStart = SQ / 2 + 4;
-    const lineEnd   = lineStart + 22;
+    const lineStart = SQ / 2 + 4, lineEnd = lineStart + 22;
     ctx.beginPath();
     ctx.moveTo(cx + nx * lineStart, cy + ny * lineStart);
     ctx.lineTo(cx + nx * lineEnd,   cy + ny * lineEnd);
@@ -634,7 +736,6 @@ function render() {
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.globalAlpha = 1;
-    // Crosshair dot at mouse
     ctx.beginPath();
     ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2);
     ctx.fillStyle = myColor;
@@ -642,6 +743,10 @@ function render() {
     ctx.fill();
     ctx.globalAlpha = 1;
   }
+
+  // Cooldown pips (bottom-left of canvas)
+  drawCooldownPip(16, H - 16, 'DASH', lastDash, DASH_COOLDOWN, '#aaffcc');
+  drawCooldownPip(16, H - 36, 'MELEE', lastMelee, MELEE_COOLDOWN, '#ffaacc');
 }
 
 function drawBullet(b, color) {
@@ -652,6 +757,54 @@ function drawBullet(b, color) {
   ctx.shadowBlur = 8;
   ctx.fill();
   ctx.shadowBlur = 0;
+}
+
+function drawSwing(s, color) {
+  const progress = s.frame / MELEE_FRAMES;
+  const alpha = progress < 0.5 ? progress * 2 : 1 - (progress - 0.5) * 2;
+  // Arc sweeps from -MELEE_ARC/2 to +MELEE_ARC/2 around the swing angle
+  const startAngle = s.angle - MELEE_ARC / 2;
+  const endAngle   = s.angle + MELEE_ARC / 2;
+  ctx.beginPath();
+  ctx.moveTo(s.cx, s.cy);
+  ctx.arc(s.cx, s.cy, MELEE_RANGE, startAngle, endAngle);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha * 0.25;
+  ctx.fill();
+  // Outer arc stroke
+  ctx.beginPath();
+  ctx.arc(s.cx, s.cy, MELEE_RANGE, startAngle, endAngle);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = alpha * 0.7;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function drawCooldownPip(x, y, label, lastUsed, cooldown, color) {
+  const now = Date.now();
+  const elapsed = now - lastUsed;
+  const ready = elapsed >= cooldown;
+  ctx.font = '9px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = ready ? color : '#333';
+  ctx.fillText(label, x, y);
+  // Small bar
+  const bw = 36, bh = 3;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x, y + 3, bw, bh);
+  if (!ready) {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(x, y + 3, bw * Math.min(elapsed / cooldown, 1), bh);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.4;
+    ctx.fillRect(x, y + 3, bw, bh);
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawSquare(p, color, name, isMe, flashing) {
@@ -718,8 +871,23 @@ window.addEventListener('beforeunload', () => { if (conn) try { conn.close(); } 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
 window.addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
-  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  // Shift dash — one-shot on keydown
+  if (e.key === 'Shift' && inGame) {
+    const now = Date.now();
+    if (now - lastDash > DASH_COOLDOWN) {
+      let dx = 0, dy = 0;
+      if (keys['w'] || keys['arrowup'])    dy = -1;
+      if (keys['s'] || keys['arrowdown'])  dy =  1;
+      if (keys['a'] || keys['arrowleft'])  dx = -1;
+      if (keys['d'] || keys['arrowright']) dx =  1;
+      dash(dx, dy);
+      lastDash = now;
+    }
+    e.preventDefault();
+  }
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
@@ -732,8 +900,16 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('mousedown', e => {
   if (e.button === 0) { keys['mousedown'] = true; e.preventDefault(); }
+  if (e.button === 2 && inGame) {
+    const now = Date.now();
+    if (now - lastMelee > MELEE_COOLDOWN) {
+      melee();
+      lastMelee = now;
+    }
+    e.preventDefault();
+  }
 });
-canvas.addEventListener('mouseup',   e => { if (e.button === 0) keys['mousedown'] = false; });
+canvas.addEventListener('mouseup',    e => { if (e.button === 0) keys['mousedown'] = false; });
 canvas.addEventListener('mouseleave', () => { keys['mousedown'] = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 </script>
