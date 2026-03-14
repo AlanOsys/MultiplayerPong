@@ -242,10 +242,7 @@ function setupConn() {
     if (data.type === 'paddle' && isHost) {
       state.p2.y = data.y;
     }
-    if (data.type === 'paddle' && !isHost) {
-      // guest receives full state, not needed
-    }
-    if (data.type === 'start') {
+    if (data.type === 'start' && !isHost) {
       startGame();
     }
   });
@@ -267,13 +264,13 @@ function startGame() {
   document.getElementById('game').style.display = 'flex';
   gameRunning = true;
 
-  if (!isHost) {
-    conn.send({ type: 'start' });
-  }
-
   resetBall();
-  if (isHost) loop();
-  else guestLoop();
+  if (isHost) {
+    if (conn && conn.open) conn.send({ type: 'start' });
+    loop();
+  } else {
+    guestLoop();
+  }
 }
 
 function stopGame() {
