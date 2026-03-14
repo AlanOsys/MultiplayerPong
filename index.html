@@ -3,24 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Multiplayer Pong</title>
+<title>Squares</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    background: #0a0a0a;
-    color: #fff;
+    background: #0d0d0d;
+    color: #e0e0e0;
     font-family: 'Courier New', monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    gap: 16px;
+    gap: 0;
   }
 
-  h1 { font-size: 28px; letter-spacing: 6px; color: #fff; text-transform: uppercase; }
+  h1 {
+    font-size: 22px;
+    letter-spacing: 8px;
+    color: #fff;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
 
   #lobby {
     display: flex;
@@ -28,155 +34,212 @@
     align-items: center;
     gap: 16px;
     width: 100%;
-    max-width: 420px;
+    max-width: 380px;
   }
 
   .card {
     background: #111;
-    border: 1px solid #333;
+    border: 1px solid #1e1e1e;
     border-radius: 10px;
-    padding: 20px 24px;
+    padding: 18px 20px;
     width: 100%;
   }
 
-  .card h2 { font-size: 13px; letter-spacing: 3px; color: #888; margin-bottom: 12px; text-transform: uppercase; }
+  .card-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #555;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
 
-  #my-id {
-    background: #1a1a1a;
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 10px 14px;
-    font-size: 22px;
-    letter-spacing: 4px;
+  #my-code {
+    font-size: 28px;
+    letter-spacing: 6px;
     color: #4eff91;
     text-align: center;
     cursor: pointer;
     user-select: all;
-    width: 100%;
-    font-family: 'Courier New', monospace;
+    padding: 10px;
+    background: #0a0a0a;
+    border: 1px solid #1e1e1e;
+    border-radius: 6px;
+    transition: border-color 0.15s;
   }
 
-  #my-id:hover { border-color: #4eff91; }
+  #my-code:hover { border-color: #4eff91; }
 
-  .hint { font-size: 11px; color: #555; text-align: center; margin-top: 6px; }
+  .hint { font-size: 11px; color: #444; text-align: center; margin-top: 7px; }
 
   .join-row { display: flex; gap: 8px; }
 
-  input {
+  .name-row { display: flex; gap: 8px; margin-bottom: 12px; }
+
+  input[type="text"] {
     flex: 1;
-    background: #1a1a1a;
-    border: 1px solid #444;
+    background: #0a0a0a;
+    border: 1px solid #1e1e1e;
     border-radius: 6px;
-    padding: 10px 14px;
-    font-size: 20px;
-    letter-spacing: 4px;
+    padding: 10px 12px;
+    font-size: 14px;
     color: #fff;
     font-family: 'Courier New', monospace;
-    text-transform: uppercase;
     outline: none;
+    transition: border-color 0.15s;
   }
 
-  input:focus { border-color: #4eff91; }
+  input:focus { border-color: #444; }
+
+  #code-input {
+    font-size: 20px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
 
   button {
-    background: #4eff91;
-    color: #000;
-    border: none;
+    background: transparent;
+    border: 1px solid #333;
     border-radius: 6px;
-    padding: 10px 18px;
-    font-size: 13px;
-    font-weight: 700;
+    padding: 10px 16px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #ccc;
     cursor: pointer;
-    letter-spacing: 1px;
     font-family: 'Courier New', monospace;
     text-transform: uppercase;
-    transition: opacity 0.15s;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
   }
 
-  button:hover { opacity: 0.85; }
+  button:hover:not(:disabled) { background: #1a1a1a; border-color: #555; }
   button:disabled { opacity: 0.3; cursor: default; }
 
-  #status { font-size: 13px; color: #888; text-align: center; min-height: 18px; }
-
-  #game { display: none; flex-direction: column; align-items: center; gap: 10px; }
-
-  #scores {
-    display: flex;
-    gap: 60px;
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: 2px;
+  #status {
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 1px;
+    min-height: 16px;
+    text-align: center;
   }
 
-  .score-label { font-size: 11px; color: #555; text-align: center; letter-spacing: 2px; margin-bottom: 2px; }
+  #arena { display: none; flex-direction: column; align-items: center; gap: 10px; }
+
+  #top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 700px;
+    font-size: 11px;
+    color: #444;
+    letter-spacing: 1px;
+  }
 
   canvas {
-    border: 1px solid #333;
-    border-radius: 4px;
     display: block;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
   }
 
-  #game-status { font-size: 13px; color: #888; letter-spacing: 1px; }
+  #legend {
+    display: flex;
+    gap: 20px;
+    width: 700px;
+  }
 
-  #controls { font-size: 11px; color: #444; letter-spacing: 1px; }
+  .leg {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: #555;
+  }
+
+  .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  #controls-hint { font-size: 11px; color: #2e2e2e; letter-spacing: 1px; }
+
+  #disconnect-btn {
+    background: none;
+    border: none;
+    color: #444;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 0;
+  }
+
+  #disconnect-btn:hover { color: #888; }
 </style>
 </head>
 <body>
 
-<h1>Pong</h1>
+<h1>Squares</h1>
 
 <div id="lobby">
   <div class="card">
-    <h2>Your Game ID</h2>
-    <div id="my-id">···</div>
-    <p class="hint">Click to copy — share this with your opponent</p>
+    <div class="card-label">Your code — share with friend</div>
+    <div id="my-code">···</div>
+    <p class="hint">Click to copy</p>
   </div>
 
   <div class="card">
-    <h2>Join a Game</h2>
+    <div class="card-label">Your name</div>
+    <div class="name-row">
+      <input type="text" id="name-input" placeholder="Player 1" maxlength="12" value="" />
+    </div>
+    <div class="card-label">Join friend</div>
     <div class="join-row">
-      <input id="peer-input" placeholder="ENTER ID" maxlength="4" />
-      <button id="join-btn" disabled>Join</button>
+      <input type="text" id="code-input" placeholder="ENTER CODE" maxlength="6" />
+      <button id="join-btn" disabled>Connect</button>
     </div>
   </div>
 
   <div id="status">Connecting to network…</div>
 </div>
 
-<div id="game">
-  <div>
-    <div class="score-label">YOU &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; THEM</div>
-    <div id="scores">
-      <span id="score-me">0</span>
-      <span id="score-them">0</span>
-    </div>
+<div id="arena">
+  <div id="top-bar">
+    <span id="conn-status">Connected</span>
+    <button id="disconnect-btn">Disconnect</button>
   </div>
-  <canvas id="canvas" width="600" height="400"></canvas>
-  <div id="game-status"></div>
-  <div id="controls">W / S or ↑ / ↓ to move your paddle</div>
+  <canvas id="canvas" width="700" height="500"></canvas>
+  <div id="legend">
+    <div class="leg"><div class="swatch" id="swatch-me"></div><span id="label-me">You</span></div>
+    <div class="leg"><div class="swatch" id="swatch-them"></div><span id="label-them">Opponent</span></div>
+  </div>
+  <div id="controls-hint">WASD or arrow keys to move</div>
 </div>
 
 <script>
-const W = 600, H = 400, PADDLE_W = 12, PADDLE_H = 80, BALL_SIZE = 10, PADDLE_SPEED = 5;
+const W = 700, H = 500, SQ = 28, SPEED = 3;
 
-let peer, conn, myId, isHost = false;
-let gameRunning = false;
+const COLORS = ['#4eff91', '#4eb8ff', '#ff4e91', '#ffd04e', '#c04eff', '#ff884e', '#4effee', '#b8ff4e'];
 
-// Game state (host is authoritative)
-let state = {
-  ball: { x: W/2, y: H/2, vx: 3, vy: 2 },
-  p1: { y: H/2 - PADDLE_H/2 },  // host = left
-  p2: { y: H/2 - PADDLE_H/2 },  // guest = right
-  score: { p1: 0, p2: 0 }
-};
+let peer, conn;
+let myColor, theirColor;
+let myName, theirName;
 
-let myPaddleY = H/2 - PADDLE_H/2;
+let me    = { x: 80,       y: H / 2 - SQ / 2 };
+let them  = { x: W - 80 - SQ, y: H / 2 - SQ / 2 };
+
 let keys = {};
 let animFrame;
+let lastSend = 0;
+let inGame = false;
 
-// ── PeerJS setup ──────────────────────────────────────────
-function generateId() {
-  return Math.random().toString(36).substr(2, 4).toUpperCase();
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// ── PeerJS ────────────────────────────────────────────────
+
+function makeCode() {
+  return Math.random().toString(36).substr(2, 6).toUpperCase();
 }
 
 const peerConfig = {
@@ -188,220 +251,173 @@ const peerConfig = {
   }
 };
 
-peer = new Peer(generateId(), peerConfig);
+peer = new Peer(makeCode(), peerConfig);
 
 peer.on('open', id => {
-  myId = id;
-  document.getElementById('my-id').textContent = id;
+  document.getElementById('my-code').textContent = id;
   document.getElementById('join-btn').disabled = false;
-  setStatus('Ready — share your ID or enter a friend\'s');
+  setStatus('Ready — share your code or enter a friend\'s');
 });
 
 peer.on('error', e => setStatus('Error: ' + e.type));
 
+// Host receives connection
 peer.on('connection', c => {
   conn = c;
-  isHost = true;
-  setupConn();
-  setStatus('Opponent connected! Starting…');
-  setTimeout(startGame, 800);
+  myColor    = COLORS[0];
+  theirColor = COLORS[1];
+  setupConn(true);
 });
 
+// Guest connects
 document.getElementById('join-btn').addEventListener('click', () => {
-  const id = document.getElementById('peer-input').value.trim().toUpperCase();
-  if (!id || id === myId) return;
-  setStatus('Connecting to ' + id + '…');
-  conn = peer.connect(id, { reliable: false });
-  isHost = false;
-  setupConn();
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  if (!code) return;
+  setStatus('Connecting to ' + code + '…');
+  document.getElementById('join-btn').disabled = true;
+  conn = peer.connect(code, { reliable: false, serialization: 'json' });
+  myColor    = COLORS[1];
+  theirColor = COLORS[0];
+  setupConn(false);
 });
 
-document.getElementById('my-id').addEventListener('click', () => {
-  navigator.clipboard?.writeText(myId);
-  document.getElementById('my-id').textContent = '✓ COPIED';
-  setTimeout(() => document.getElementById('my-id').textContent = myId, 1200);
+document.getElementById('my-code').addEventListener('click', () => {
+  const code = document.getElementById('my-code').textContent;
+  navigator.clipboard?.writeText(code);
+  document.getElementById('my-code').textContent = '✓ COPIED';
+  setTimeout(() => document.getElementById('my-code').textContent = code, 1200);
 });
 
-document.getElementById('peer-input').addEventListener('input', e => {
+document.getElementById('code-input').addEventListener('input', e => {
   e.target.value = e.target.value.toUpperCase();
 });
 
-function setupConn() {
+// ── Connection ────────────────────────────────────────────
+
+function setupConn(isHost) {
   conn.on('open', () => {
-    if (!isHost) {
-      setStatus('Connected! Waiting for host…');
-    }
+    myName = document.getElementById('name-input').value.trim() || (isHost ? 'Player 1' : 'Player 2');
+
+    // Exchange names and colors
+    conn.send({ type: 'hello', name: myName, color: myColor });
+    setStatus('Connected! Starting…');
   });
 
   conn.on('data', data => {
-    if (data.type === 'state' && !isHost) {
-      state = data.state;
-      updateScoreUI();
-      renderFrame();
+    if (data.type === 'hello') {
+      theirName  = data.name;
+      theirColor = data.color;   // let their hello override if needed
+      if (!inGame) startGame();
     }
-    if (data.type === 'paddle' && isHost) {
-      state.p2.y = data.y;
-    }
-    if (data.type === 'start' && !isHost) {
-      startGame();
+    if (data.type === 'pos') {
+      them.x = data.x;
+      them.y = data.y;
     }
   });
 
   conn.on('close', () => {
+    inGame = false;
+    cancelAnimationFrame(animFrame);
     setStatus('Opponent disconnected.');
-    stopGame();
+    showLobby();
+  });
+
+  conn.on('error', () => {
+    setStatus('Connection error.');
     showLobby();
   });
 }
 
-function setStatus(msg) {
-  document.getElementById('status').textContent = msg;
-}
-
 // ── Game ──────────────────────────────────────────────────
+
 function startGame() {
+  inGame = true;
+
+  me.x    = myColor === COLORS[0] ? 80 : W - 80 - SQ;
+  me.y    = H / 2 - SQ / 2;
+  them.x  = myColor === COLORS[0] ? W - 80 - SQ : 80;
+  them.y  = H / 2 - SQ / 2;
+
+  document.getElementById('swatch-me').style.background    = myColor;
+  document.getElementById('swatch-them').style.background  = theirColor;
+  document.getElementById('label-me').textContent          = (myName   || 'You') + ' (you)';
+  document.getElementById('label-them').textContent        = theirName || 'Opponent';
+
   document.getElementById('lobby').style.display = 'none';
-  document.getElementById('game').style.display = 'flex';
-  gameRunning = true;
+  document.getElementById('arena').style.display = 'flex';
 
-  resetBall();
-  if (isHost) {
-    if (conn && conn.open) conn.send({ type: 'start' });
-    loop();
-  } else {
-    guestLoop();
-  }
-}
-
-function stopGame() {
-  gameRunning = false;
-  if (animFrame) cancelAnimationFrame(animFrame);
+  loop();
 }
 
 function showLobby() {
-  document.getElementById('lobby').style.display = 'flex';
-  document.getElementById('game').style.display = 'none';
+  document.getElementById('arena').style.display  = 'none';
+  document.getElementById('lobby').style.display  = 'flex';
+  document.getElementById('join-btn').disabled = false;
 }
 
-function resetBall() {
-  const dir = Math.random() > 0.5 ? 1 : -1;
-  state.ball = {
-    x: W/2, y: H/2,
-    vx: (3 + Math.random()) * dir,
-    vy: (2 + Math.random()) * (Math.random() > 0.5 ? 1 : -1)
-  };
-}
-
-// Host runs the physics loop
 function loop() {
-  if (!gameRunning) return;
-  handleInput();
-  physics();
-  sendState();
-  renderFrame();
+  if (!inGame) return;
+  update();
+  render();
   animFrame = requestAnimationFrame(loop);
 }
 
-// Guest just sends paddle pos and renders from received state
-function guestLoop() {
-  if (!gameRunning) return;
-  handleInput();
-  if (conn && conn.open) {
-    conn.send({ type: 'paddle', y: myPaddleY });
-  }
-  animFrame = requestAnimationFrame(guestLoop);
-}
+function update() {
+  let moved = false;
+  if (keys['w'] || keys['arrowup'])    { me.y = Math.max(0, me.y - SPEED); moved = true; }
+  if (keys['s'] || keys['arrowdown'])  { me.y = Math.min(H - SQ, me.y + SPEED); moved = true; }
+  if (keys['a'] || keys['arrowleft'])  { me.x = Math.max(0, me.x - SPEED); moved = true; }
+  if (keys['d'] || keys['arrowright']) { me.x = Math.min(W - SQ, me.x + SPEED); moved = true; }
 
-function handleInput() {
-  const paddleKey = isHost ? 'p1' : 'p2';
-  if (keys['w'] || keys['arrowup']) myPaddleY = Math.max(0, myPaddleY - PADDLE_SPEED);
-  if (keys['s'] || keys['arrowdown']) myPaddleY = Math.min(H - PADDLE_H, myPaddleY + PADDLE_SPEED);
-
-  if (isHost) state.p1.y = myPaddleY;
-  else state.p2.y = myPaddleY;
-}
-
-function physics() {
-  const b = state.ball;
-  b.x += b.vx;
-  b.y += b.vy;
-
-  // Wall bounce
-  if (b.y <= 0 || b.y + BALL_SIZE >= H) b.vy *= -1;
-
-  // Paddle collision - P1 (left)
-  if (b.x <= PADDLE_W + 10 && b.y + BALL_SIZE >= state.p1.y && b.y <= state.p1.y + PADDLE_H) {
-    b.vx = Math.abs(b.vx) * 1.05;
-    const hit = (b.y + BALL_SIZE/2 - (state.p1.y + PADDLE_H/2)) / (PADDLE_H/2);
-    b.vy = hit * 5;
-  }
-
-  // Paddle collision - P2 (right)
-  if (b.x + BALL_SIZE >= W - PADDLE_W - 10 && b.y + BALL_SIZE >= state.p2.y && b.y <= state.p2.y + PADDLE_H) {
-    b.vx = -Math.abs(b.vx) * 1.05;
-    const hit = (b.y + BALL_SIZE/2 - (state.p2.y + PADDLE_H/2)) / (PADDLE_H/2);
-    b.vy = hit * 5;
-  }
-
-  // Cap speed
-  b.vx = Math.max(-12, Math.min(12, b.vx));
-  b.vy = Math.max(-10, Math.min(10, b.vy));
-
-  // Score
-  if (b.x < 0) { state.score.p2++; updateScoreUI(); resetBall(); }
-  if (b.x > W) { state.score.p1++; updateScoreUI(); resetBall(); }
-}
-
-function sendState() {
-  if (conn && conn.open) {
-    conn.send({ type: 'state', state });
+  if (moved) {
+    const now = Date.now();
+    if (now - lastSend > 33 && conn && conn.open) {
+      conn.send({ type: 'pos', x: me.x, y: me.y });
+      lastSend = now;
+    }
   }
 }
 
-function updateScoreUI() {
-  document.getElementById('score-me').textContent  = isHost ? state.score.p1 : state.score.p2;
-  document.getElementById('score-them').textContent = isHost ? state.score.p2 : state.score.p1;
-}
-
-// ── Render ────────────────────────────────────────────────
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-
-function renderFrame() {
-  ctx.fillStyle = '#0a0a0a';
+function render() {
+  ctx.fillStyle = '#080808';
   ctx.fillRect(0, 0, W, H);
 
-  // Center line
-  ctx.setLineDash([6, 8]);
-  ctx.strokeStyle = '#222';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
-  ctx.setLineDash([]);
+  // Grid
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= W; x += 50) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += 50) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-  // Paddles
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  roundRect(ctx, 10, state.p1.y, PADDLE_W, PADDLE_H, 4);
-  ctx.fill();
-
-  ctx.beginPath();
-  roundRect(ctx, W - 10 - PADDLE_W, state.p2.y, PADDLE_W, PADDLE_H, 4);
-  ctx.fill();
-
-  // Ball
-  ctx.fillStyle = '#4eff91';
-  ctx.beginPath();
-  ctx.roundRect(state.ball.x, state.ball.y, BALL_SIZE, BALL_SIZE, 3);
-  ctx.fill();
-
-  // Role label
-  ctx.fillStyle = '#333';
-  ctx.font = '10px Courier New';
-  ctx.fillText(isHost ? 'YOU' : '', 16, 14);
-  ctx.fillText(isHost ? '' : 'YOU', W - 36, 14);
+  drawSquare(me,   myColor,    myName   || 'You',       true);
+  drawSquare(them, theirColor, theirName || 'Opponent',  false);
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+function drawSquare(p, color, name, isMe) {
+  if (isMe) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+  }
+  ctx.fillStyle = color;
+  ctx.globalAlpha = isMe ? 1 : 0.8;
+  rrect(p.x, p.y, SQ, SQ, 4);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  ctx.font = '10px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = isMe ? '#fff' : '#999';
+  ctx.fillText(name, p.x + SQ / 2, p.y - 6);
+
+  if (isMe) {
+    ctx.fillStyle = color;
+    ctx.font = '8px Courier New';
+    ctx.fillText('▲', p.x + SQ / 2, p.y - 15);
+  }
+}
+
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
   ctx.quadraticCurveTo(x + w, y, x + w, y + r);
@@ -414,10 +430,21 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ── Input ─────────────────────────────────────────────────
+document.getElementById('disconnect-btn').addEventListener('click', () => {
+  inGame = false;
+  cancelAnimationFrame(animFrame);
+  if (conn) conn.close();
+  showLobby();
+  setStatus('Disconnected.');
+});
+
+window.addEventListener('beforeunload', () => { if (conn) try { conn.close(); } catch {} });
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-  if (['arrowup','arrowdown',' '].includes(e.key.toLowerCase())) e.preventDefault();
+  if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 </script>
