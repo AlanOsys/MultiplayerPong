@@ -265,7 +265,7 @@
     </div>
   </div>
 
-  <div id="controls-hint">WASD / arrows to move &nbsp;·&nbsp; SPACE to shoot &nbsp;·&nbsp; aim with movement direction</div>
+  <div id="controls-hint">WASD / arrows to move &nbsp;·&nbsp; left click or SPACE to shoot &nbsp;·&nbsp; aim with mouse</div>
 </div>
 
 <script>
@@ -281,7 +281,7 @@ let myColor, theirColor, myName, theirName;
 let inGame = false;
 let keys = {};
 let animFrame, lastSend = 0, lastFire = 0;
-let facing = { x: 1, y: 0 }; // direction of last movement
+let mouse = { x: W / 2, y: H / 2 }; // canvas-relative mouse position
 
 let me    = { x: 80, y: H/2 - SQ/2, hp: MAX_HP };
 let them  = { x: W - 80 - SQ, y: H/2 - SQ/2, hp: MAX_HP };
@@ -525,10 +525,6 @@ function update() {
   if (dx !== 0 || dy !== 0) {
     me.x = Math.max(0, Math.min(W - SQ, me.x + dx * SPEED));
     me.y = Math.max(0, Math.min(H - SQ, me.y + dy * SPEED));
-    // Normalise diagonal
-    const len = Math.sqrt(dx*dx + dy*dy);
-    facing.x = dx / len;
-    facing.y = dy / len;
     moved = true;
   }
 
@@ -537,8 +533,8 @@ function update() {
     lastSend = now;
   }
 
-  // Firing
-  if (keys[' '] && now - lastFire > FIRE_COOLDOWN) {
+  // Firing — space bar held or mouse button held
+  if ((keys[' '] || keys['mousedown']) && now - lastFire > FIRE_COOLDOWN) {
     fire();
     lastFire = now;
   }
@@ -588,11 +584,14 @@ function update() {
 }
 
 function fire() {
-  // Fire from center of square in facing direction
   const cx = me.x + SQ / 2;
   const cy = me.y + SQ / 2;
+  const dx = mouse.x - cx;
+  const dy = mouse.y - cy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return;
   const id = ++bulletIdCounter;
-  const b = { x: cx, y: cy, vx: facing.x * BULLET_SPEED, vy: facing.y * BULLET_SPEED, id };
+  const b = { x: cx, y: cy, vx: (dx / len) * BULLET_SPEED, vy: (dy / len) * BULLET_SPEED, id };
   myBullets.push(b);
   conn && conn.send({ type: 'bullet', x: b.x, y: b.y, vx: b.vx, vy: b.vy, id: b.id });
 }
@@ -616,6 +615,33 @@ function render() {
 
   drawSquare(them, theirColor, theirName || 'Opponent', false, theirFlash > 0);
   drawSquare(me,   myColor,    myName    || 'You',      true,  myFlash > 0);
+
+  // Aim line from player center toward mouse
+  const cx = me.x + SQ / 2;
+  const cy = me.y + SQ / 2;
+  const dx = mouse.x - cx;
+  const dy = mouse.y - cy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len > 0 && inGame) {
+    const nx = dx / len, ny = dy / len;
+    const lineStart = SQ / 2 + 4;
+    const lineEnd   = lineStart + 22;
+    ctx.beginPath();
+    ctx.moveTo(cx + nx * lineStart, cy + ny * lineStart);
+    ctx.lineTo(cx + nx * lineEnd,   cy + ny * lineEnd);
+    ctx.strokeStyle = myColor;
+    ctx.globalAlpha = 0.6;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Crosshair dot at mouse
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = myColor;
+    ctx.globalAlpha = 0.35;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawBullet(b, color) {
@@ -696,6 +722,20 @@ window.addEventListener('keydown', e => {
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// Mouse aim
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 0) { keys['mousedown'] = true; e.preventDefault(); }
+});
+canvas.addEventListener('mouseup',   e => { if (e.button === 0) keys['mousedown'] = false; });
+canvas.addEventListener('mouseleave', () => { keys['mousedown'] = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
 </html>
