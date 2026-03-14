@@ -17,7 +17,6 @@
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    gap: 0;
   }
 
   h1 {
@@ -66,13 +65,9 @@
     border-radius: 6px;
     transition: border-color 0.15s;
   }
-
   #my-code:hover { border-color: #4eff91; }
-
   .hint { font-size: 11px; color: #444; text-align: center; margin-top: 7px; }
-
   .join-row { display: flex; gap: 8px; }
-
   .name-row { display: flex; gap: 8px; margin-bottom: 12px; }
 
   input[type="text"] {
@@ -87,14 +82,8 @@
     outline: none;
     transition: border-color 0.15s;
   }
-
   input:focus { border-color: #444; }
-
-  #code-input {
-    font-size: 20px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-  }
+  #code-input { font-size: 20px; letter-spacing: 4px; text-transform: uppercase; }
 
   button {
     background: transparent;
@@ -110,7 +99,6 @@
     transition: background 0.15s, border-color 0.15s;
     white-space: nowrap;
   }
-
   button:hover:not(:disabled) { background: #1a1a1a; border-color: #555; }
   button:disabled { opacity: 0.3; cursor: default; }
 
@@ -122,7 +110,7 @@
     text-align: center;
   }
 
-  #arena { display: none; flex-direction: column; align-items: center; gap: 10px; }
+  #arena { display: none; flex-direction: column; align-items: center; gap: 8px; }
 
   #top-bar {
     display: flex;
@@ -140,41 +128,88 @@
     border-radius: 4px;
   }
 
-  #legend {
+  #hud {
     display: flex;
-    gap: 20px;
+    justify-content: space-between;
     width: 700px;
-  }
-
-  .leg {
-    display: flex;
     align-items: center;
-    gap: 7px;
-    font-size: 11px;
-    color: #555;
   }
 
-  .swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
+  .hud-player {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 200px;
   }
 
-  #controls-hint { font-size: 11px; color: #2e2e2e; letter-spacing: 1px; }
+  .hud-player.right { align-items: flex-end; }
 
-  #disconnect-btn {
-    background: none;
-    border: none;
-    color: #444;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
+  .hud-name {
     font-size: 11px;
     letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 0;
   }
 
+  .hp-track {
+    width: 100%;
+    height: 6px;
+    background: #1a1a1a;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .hp-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.1s;
+  }
+
+  .hp-text {
+    font-size: 10px;
+    color: #444;
+    letter-spacing: 1px;
+  }
+
+  #controls-hint { font-size: 11px; color: #2a2a2a; letter-spacing: 1px; }
+
+  #disconnect-btn {
+    background: none; border: none; color: #444; cursor: pointer;
+    font-family: 'Courier New', monospace; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase; padding: 0;
+    flex: none;
+  }
   #disconnect-btn:hover { color: #888; }
+
+  #overlay {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.75);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border-radius: 4px;
+  }
+
+  #overlay.show { display: flex; }
+
+  #overlay-title {
+    font-size: 28px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+  }
+
+  #overlay-sub { font-size: 12px; color: #666; letter-spacing: 2px; }
+
+  #rematch-btn {
+    border-color: #4eff91;
+    color: #4eff91;
+    padding: 10px 28px;
+    font-size: 12px;
+  }
+  #rematch-btn:hover { background: #0a2016; }
+
+  .canvas-wrap { position: relative; }
 </style>
 </head>
 <body>
@@ -187,11 +222,10 @@
     <div id="my-code">···</div>
     <p class="hint">Click to copy</p>
   </div>
-
   <div class="card">
     <div class="card-label">Your name</div>
     <div class="name-row">
-      <input type="text" id="name-input" placeholder="Player 1" maxlength="12" value="" />
+      <input type="text" id="name-input" placeholder="Player 1" maxlength="12" />
     </div>
     <div class="card-label">Join friend</div>
     <div class="join-row">
@@ -199,42 +233,73 @@
       <button id="join-btn" disabled>Connect</button>
     </div>
   </div>
-
   <div id="status">Connecting to network…</div>
 </div>
 
 <div id="arena">
   <div id="top-bar">
-    <span id="conn-status">Connected</span>
+    <span></span>
     <button id="disconnect-btn">Disconnect</button>
   </div>
-  <canvas id="canvas" width="700" height="500"></canvas>
-  <div id="legend">
-    <div class="leg"><div class="swatch" id="swatch-me"></div><span id="label-me">You</span></div>
-    <div class="leg"><div class="swatch" id="swatch-them"></div><span id="label-them">Opponent</span></div>
+
+  <div id="hud">
+    <div class="hud-player left">
+      <div class="hud-name" id="hud-name-me">You</div>
+      <div class="hp-track"><div class="hp-fill" id="hp-fill-me"></div></div>
+      <div class="hp-text" id="hp-text-me">100 HP</div>
+    </div>
+    <div style="font-size:11px;color:#2a2a2a;letter-spacing:1px;">VS</div>
+    <div class="hud-player right">
+      <div class="hud-name" id="hud-name-them">Opponent</div>
+      <div class="hp-track"><div class="hp-fill" id="hp-fill-them"></div></div>
+      <div class="hp-text" id="hp-text-them">100 HP</div>
+    </div>
   </div>
-  <div id="controls-hint">WASD or arrow keys to move</div>
+
+  <div class="canvas-wrap">
+    <canvas id="canvas" width="700" height="500"></canvas>
+    <div id="overlay">
+      <div id="overlay-title">···</div>
+      <div id="overlay-sub">···</div>
+      <button id="rematch-btn">Rematch</button>
+    </div>
+  </div>
+
+  <div id="controls-hint">WASD / arrows to move &nbsp;·&nbsp; SPACE to shoot &nbsp;·&nbsp; aim with movement direction</div>
 </div>
 
 <script>
 const W = 700, H = 500, SQ = 28, SPEED = 3;
+const BULLET_SPEED = 7, BULLET_R = 4, BULLET_DMG = 10;
+const FIRE_COOLDOWN = 400; // ms
+const MAX_HP = 100;
 
-const COLORS = ['#4eff91', '#4eb8ff', '#ff4e91', '#ffd04e', '#c04eff', '#ff884e', '#4effee', '#b8ff4e'];
+const COLORS = ['#4eff91', '#4eb8ff', '#ff4e91', '#ffd04e', '#c04eff', '#ff884e'];
 
 let peer, conn;
-let myColor, theirColor;
-let myName, theirName;
-
-let me    = { x: 80,       y: H / 2 - SQ / 2 };
-let them  = { x: W - 80 - SQ, y: H / 2 - SQ / 2 };
-
-let keys = {};
-let animFrame;
-let lastSend = 0;
+let myColor, theirColor, myName, theirName;
 let inGame = false;
+let keys = {};
+let animFrame, lastSend = 0, lastFire = 0;
+let facing = { x: 1, y: 0 }; // direction of last movement
+
+let me    = { x: 80, y: H/2 - SQ/2, hp: MAX_HP };
+let them  = { x: W - 80 - SQ, y: H/2 - SQ/2, hp: MAX_HP };
+
+// Bullets: mine (I fire, I move them, I detect if they hit opponent and send hit msg)
+// theirBullets: they fired, they sent positions to me, I just render
+let myBullets    = []; // { x, y, vx, vy, id }
+let theirBullets = []; // { x, y, vx, vy, id }
+let bulletIdCounter = 0;
+
+// Flashing on hit
+let myFlash = 0, theirFlash = 0;
+
+// Rematch state: track if both want rematch
+let wantsRematch = false, theyWantRematch = false;
 
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const ctx    = canvas.getContext('2d');
 
 // ── PeerJS ────────────────────────────────────────────────
 
@@ -242,26 +307,21 @@ function makeCode() {
   return Math.random().toString(36).substr(2, 6).toUpperCase();
 }
 
-const peerConfig = {
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' }
-    ]
-  }
-};
-
-peer = new Peer(makeCode(), peerConfig);
+peer = new Peer(makeCode(), {
+  config: { iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' }
+  ]}
+});
 
 peer.on('open', id => {
   document.getElementById('my-code').textContent = id;
   document.getElementById('join-btn').disabled = false;
-  setStatus('Ready — share your code or enter a friend\'s');
+  setStatus("Ready — share your code or enter a friend's");
 });
 
 peer.on('error', e => setStatus('Error: ' + e.type));
 
-// Host receives connection
 peer.on('connection', c => {
   conn = c;
   myColor    = COLORS[0];
@@ -269,7 +329,6 @@ peer.on('connection', c => {
   setupConn(true);
 });
 
-// Guest connects
 document.getElementById('join-btn').addEventListener('click', () => {
   const code = document.getElementById('code-input').value.trim().toUpperCase();
   if (!code) return;
@@ -292,26 +351,54 @@ document.getElementById('code-input').addEventListener('input', e => {
   e.target.value = e.target.value.toUpperCase();
 });
 
-// ── Connection ────────────────────────────────────────────
+// ── Connection ─────────────────────────────────────────────
 
 function setupConn(isHost) {
   conn.on('open', () => {
     myName = document.getElementById('name-input').value.trim() || (isHost ? 'Player 1' : 'Player 2');
-
-    // Exchange names and colors
     conn.send({ type: 'hello', name: myName, color: myColor });
     setStatus('Connected! Starting…');
   });
 
   conn.on('data', data => {
-    if (data.type === 'hello') {
-      theirName  = data.name;
-      theirColor = data.color;   // let their hello override if needed
-      if (!inGame) startGame();
-    }
-    if (data.type === 'pos') {
-      them.x = data.x;
-      them.y = data.y;
+    switch (data.type) {
+      case 'hello':
+        theirName  = data.name;
+        theirColor = data.color;
+        if (!inGame) startGame();
+        break;
+
+      case 'pos':
+        them.x = data.x;
+        them.y = data.y;
+        break;
+
+      case 'bullet':
+        // They fired a bullet — add to theirBullets for rendering
+        theirBullets.push({ x: data.x, y: data.y, vx: data.vx, vy: data.vy, id: data.id });
+        break;
+
+      case 'bullet_remove':
+        theirBullets = theirBullets.filter(b => b.id !== data.id);
+        break;
+
+      case 'hit':
+        // They say their bullet hit me — I trust it, apply damage
+        me.hp = Math.max(0, me.hp - BULLET_DMG);
+        myFlash = 8;
+        updateHUD();
+        if (me.hp <= 0) handleDeath(false); // I died
+        break;
+
+      case 'rematch':
+        theyWantRematch = true;
+        checkRematch();
+        break;
+
+      case 'restart':
+        // Both agreed — reset everything
+        resetGame();
+        break;
     }
   });
 
@@ -328,24 +415,44 @@ function setupConn(isHost) {
   });
 }
 
-// ── Game ──────────────────────────────────────────────────
+// ── Game lifecycle ─────────────────────────────────────────
 
 function startGame() {
+  resetState();
   inGame = true;
 
-  me.x    = myColor === COLORS[0] ? 80 : W - 80 - SQ;
-  me.y    = H / 2 - SQ / 2;
-  them.x  = myColor === COLORS[0] ? W - 80 - SQ : 80;
-  them.y  = H / 2 - SQ / 2;
-
-  document.getElementById('swatch-me').style.background    = myColor;
-  document.getElementById('swatch-them').style.background  = theirColor;
-  document.getElementById('label-me').textContent          = (myName   || 'You') + ' (you)';
-  document.getElementById('label-them').textContent        = theirName || 'Opponent';
+  document.getElementById('hud-name-me').textContent   = (myName || 'You') + ' (you)';
+  document.getElementById('hud-name-them').textContent = theirName || 'Opponent';
+  document.getElementById('hp-fill-me').style.background   = myColor;
+  document.getElementById('hp-fill-them').style.background = theirColor;
+  updateHUD();
 
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('arena').style.display = 'flex';
+  hideOverlay();
+  loop();
+}
 
+function resetState() {
+  me.x = myColor === COLORS[0] ? 80 : W - 80 - SQ;
+  me.y = H / 2 - SQ / 2;
+  me.hp = MAX_HP;
+  them.x = myColor === COLORS[0] ? W - 80 - SQ : 80;
+  them.y = H / 2 - SQ / 2;
+  them.hp = MAX_HP;
+  myBullets = [];
+  theirBullets = [];
+  facing = { x: myColor === COLORS[0] ? 1 : -1, y: 0 };
+  myFlash = 0; theirFlash = 0;
+  wantsRematch = false; theyWantRematch = false;
+}
+
+function resetGame() {
+  cancelAnimationFrame(animFrame);
+  resetState();
+  updateHUD();
+  hideOverlay();
+  inGame = true;
   loop();
 }
 
@@ -355,6 +462,48 @@ function showLobby() {
   document.getElementById('join-btn').disabled = false;
 }
 
+function handleDeath(iWon) {
+  inGame = false;
+  cancelAnimationFrame(animFrame);
+  const title = iWon ? 'You win!' : 'You died';
+  const sub   = iWon ? (theirName || 'Opponent') + ' has been defeated' : 'Defeated by ' + (theirName || 'opponent');
+  showOverlay(title, sub);
+}
+
+function showOverlay(title, sub) {
+  document.getElementById('overlay-title').textContent = title;
+  document.getElementById('overlay-sub').textContent   = sub;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+document.getElementById('rematch-btn').addEventListener('click', () => {
+  wantsRematch = true;
+  document.getElementById('rematch-btn').textContent = 'Waiting…';
+  document.getElementById('rematch-btn').disabled = true;
+  conn && conn.send({ type: 'rematch' });
+  checkRematch();
+});
+
+function checkRematch() {
+  if (wantsRematch && theyWantRematch) {
+    // Both want rematch — host sends the restart signal
+    if (myColor === COLORS[0]) {
+      conn && conn.send({ type: 'restart' });
+    }
+    resetGame();
+    document.getElementById('rematch-btn').textContent = 'Rematch';
+    document.getElementById('rematch-btn').disabled = false;
+  } else if (theyWantRematch && !wantsRematch) {
+    document.getElementById('overlay-sub').textContent = (theirName || 'Opponent') + ' wants a rematch!';
+  }
+}
+
+// ── Main loop ──────────────────────────────────────────────
+
 function loop() {
   if (!inGame) return;
   update();
@@ -363,20 +512,92 @@ function loop() {
 }
 
 function update() {
-  let moved = false;
-  if (keys['w'] || keys['arrowup'])    { me.y = Math.max(0, me.y - SPEED); moved = true; }
-  if (keys['s'] || keys['arrowdown'])  { me.y = Math.min(H - SQ, me.y + SPEED); moved = true; }
-  if (keys['a'] || keys['arrowleft'])  { me.x = Math.max(0, me.x - SPEED); moved = true; }
-  if (keys['d'] || keys['arrowright']) { me.x = Math.min(W - SQ, me.x + SPEED); moved = true; }
+  const now = Date.now();
 
-  if (moved) {
-    const now = Date.now();
-    if (now - lastSend > 33 && conn && conn.open) {
-      conn.send({ type: 'pos', x: me.x, y: me.y });
-      lastSend = now;
+  // Movement
+  let moved = false;
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup'])    { dy = -1; }
+  if (keys['s'] || keys['arrowdown'])  { dy =  1; }
+  if (keys['a'] || keys['arrowleft'])  { dx = -1; }
+  if (keys['d'] || keys['arrowright']) { dx =  1; }
+
+  if (dx !== 0 || dy !== 0) {
+    me.x = Math.max(0, Math.min(W - SQ, me.x + dx * SPEED));
+    me.y = Math.max(0, Math.min(H - SQ, me.y + dy * SPEED));
+    // Normalise diagonal
+    const len = Math.sqrt(dx*dx + dy*dy);
+    facing.x = dx / len;
+    facing.y = dy / len;
+    moved = true;
+  }
+
+  if (moved && now - lastSend > 33 && conn && conn.open) {
+    conn.send({ type: 'pos', x: me.x, y: me.y });
+    lastSend = now;
+  }
+
+  // Firing
+  if (keys[' '] && now - lastFire > FIRE_COOLDOWN) {
+    fire();
+    lastFire = now;
+  }
+
+  // Move my bullets + hit detection
+  for (let i = myBullets.length - 1; i >= 0; i--) {
+    const b = myBullets[i];
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // Out of bounds
+    if (b.x < -20 || b.x > W + 20 || b.y < -20 || b.y > H + 20) {
+      myBullets.splice(i, 1);
+      conn && conn.send({ type: 'bullet_remove', id: b.id });
+      continue;
+    }
+
+    // Hit opponent square
+    if (b.x + BULLET_R > them.x && b.x - BULLET_R < them.x + SQ &&
+        b.y + BULLET_R > them.y && b.y - BULLET_R < them.y + SQ) {
+      myBullets.splice(i, 1);
+      conn && conn.send({ type: 'bullet_remove', id: b.id });
+      // Tell them they got hit
+      conn && conn.send({ type: 'hit' });
+      // Update their hp locally for display
+      them.hp = Math.max(0, them.hp - BULLET_DMG);
+      theirFlash = 8;
+      updateHUD();
+      if (them.hp <= 0) handleDeath(true); // I won
+      continue;
     }
   }
+
+  // Move their bullets (for visual only — they own the hit detection on their side)
+  for (let i = theirBullets.length - 1; i >= 0; i--) {
+    const b = theirBullets[i];
+    b.x += b.vx;
+    b.y += b.vy;
+    if (b.x < -20 || b.x > W + 20 || b.y < -20 || b.y > H + 20) {
+      theirBullets.splice(i, 1);
+    }
+  }
+
+  // Tick flash
+  if (myFlash > 0)    myFlash--;
+  if (theirFlash > 0) theirFlash--;
 }
+
+function fire() {
+  // Fire from center of square in facing direction
+  const cx = me.x + SQ / 2;
+  const cy = me.y + SQ / 2;
+  const id = ++bulletIdCounter;
+  const b = { x: cx, y: cy, vx: facing.x * BULLET_SPEED, vy: facing.y * BULLET_SPEED, id };
+  myBullets.push(b);
+  conn && conn.send({ type: 'bullet', x: b.x, y: b.y, vx: b.vx, vy: b.vy, id: b.id });
+}
+
+// ── Render ─────────────────────────────────────────────────
 
 function render() {
   ctx.fillStyle = '#080808';
@@ -385,50 +606,79 @@ function render() {
   // Grid
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 0.5;
-  for (let x = 0; x <= W; x += 50) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y <= H; y += 50) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let x = 0; x <= W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
-  drawSquare(me,   myColor,    myName   || 'You',       true);
-  drawSquare(them, theirColor, theirName || 'Opponent',  false);
+  // Their bullets
+  for (const b of theirBullets) drawBullet(b, theirColor);
+  // My bullets
+  for (const b of myBullets)    drawBullet(b, myColor);
+
+  drawSquare(them, theirColor, theirName || 'Opponent', false, theirFlash > 0);
+  drawSquare(me,   myColor,    myName    || 'You',      true,  myFlash > 0);
 }
 
-function drawSquare(p, color, name, isMe) {
+function drawBullet(b, color) {
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, BULLET_R, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawSquare(p, color, name, isMe, flashing) {
+  const drawColor = flashing ? '#ff3333' : color;
+
   if (isMe) {
-    ctx.shadowColor = color;
+    ctx.shadowColor = drawColor;
     ctx.shadowBlur = 14;
   }
-  ctx.fillStyle = color;
-  ctx.globalAlpha = isMe ? 1 : 0.8;
+  ctx.fillStyle = drawColor;
+  ctx.globalAlpha = isMe ? 1 : 0.85;
   rrect(p.x, p.y, SQ, SQ, 4);
   ctx.fill();
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
 
+  // Name
   ctx.font = '10px Courier New';
   ctx.textAlign = 'center';
   ctx.fillStyle = isMe ? '#fff' : '#999';
   ctx.fillText(name, p.x + SQ / 2, p.y - 6);
 
   if (isMe) {
-    ctx.fillStyle = color;
+    ctx.fillStyle = drawColor;
     ctx.font = '8px Courier New';
     ctx.fillText('▲', p.x + SQ / 2, p.y - 15);
   }
 }
 
+function updateHUD() {
+  const mePct   = (me.hp   / MAX_HP) * 100;
+  const themPct = (them.hp / MAX_HP) * 100;
+
+  document.getElementById('hp-fill-me').style.width   = mePct   + '%';
+  document.getElementById('hp-fill-them').style.width = themPct + '%';
+  document.getElementById('hp-text-me').textContent   = me.hp   + ' HP';
+  document.getElementById('hp-text-them').textContent = them.hp + ' HP';
+
+  // Color hp bar red when low
+  document.getElementById('hp-fill-me').style.background   = me.hp   < 30 ? '#ff3333' : myColor;
+  document.getElementById('hp-fill-them').style.background = them.hp < 30 ? '#ff3333' : theirColor;
+}
+
 function rrect(x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
+
+// ── Controls ───────────────────────────────────────────────
 
 document.getElementById('disconnect-btn').addEventListener('click', () => {
   inGame = false;
@@ -439,12 +689,11 @@ document.getElementById('disconnect-btn').addEventListener('click', () => {
 });
 
 window.addEventListener('beforeunload', () => { if (conn) try { conn.close(); } catch {} });
-
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-  if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault();
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 </script>
